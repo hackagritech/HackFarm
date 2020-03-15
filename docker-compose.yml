@@ -1,0 +1,56 @@
+# v2 syntax
+version: '2'
+
+# Named volumes
+volumes:
+  redis-data:
+    driver: local
+  # MySQL Data
+  hackfarm-mysql-data:
+    driver: local
+
+services:
+  # MySQL (5.7)
+  mysql:
+    image: mysql:5.7.27
+    container_name: hackfarm-mysql
+    volumes:
+      - hackfarm-mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=hackfarm
+      - MYSQL_DATABASE=hackfarm
+      - MYSQL_USER=hackfarm
+      - MYSQL_PASSWORD=hackfarm
+
+  # PHP (with Caddy)
+  app:
+    image: ambientum/php:7.2-nginx
+    container_name: hackfarm-app
+    volumes:
+      - .:/var/www/app
+    ports:
+      - "80:8080"
+    links:
+      - mysql
+  # Redis: For Laravel caching, queue, session and others.
+  redis:
+    image: redis:5.0-alpine
+    container_name: hackfarm-redis
+    command: 'redis-server --requirepass acme'  # authenticated with a password.
+    volumes:
+      - 'redis-data:/data'  # persist Redis data ("/data") on volume "redis-data".
+    ports:
+      - 6379:6379  # Port 6379 => Default Redis TCP port.
+
+  # Laravel Queues
+  queue:
+    image: ambientum/php:7.2
+    container_name: hackfarm-queue
+    command: php artisan queue:listen
+    volumes:
+      - .:/var/www/app
+    links:
+      - mysql
+      - redis
